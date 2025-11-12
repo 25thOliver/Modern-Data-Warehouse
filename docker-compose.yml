@@ -1,0 +1,78 @@
+networks:
+  data-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  airbyte_data:
+  grafana_data:
+
+services:
+  # PostgreSQL Database - Our Data Warehouse
+  postgre:
+    image: postgres:15-alpine
+    container_name: dwh_postgres
+    restart: unless-stopped
+    networks:
+      - data-network
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: dwh_user
+      POSTGRES_PASSWORD: dwh_password
+      POSTGRES_DB: data_warehouse
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dwh_user -d data_warehouse"]
+      interval: 1os
+      timeout: 5s
+      retries: 5
+      
+  # Airbyte - Data Ingestion Platform
+  airbyte:
+    image: airbyte/airbyte-bootloader:latest
+    container_name: dwh_airbyte
+    restart: unless-stopped
+    networks:
+      - data-network
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=dwh_user
+      - DATABASE_PASSWORD=dwh_password
+      - DATABASE_DB=airbyte
+      - AIRBYTE_VERSION=latest
+    volumes:
+      - airbyte_data:/data
+      - ./data_source:/data_source:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "echo 'Note: For full Airbyte deployment, please use the official Airbyte docker-compose from https://github.com/airbytehq/airbyte'
+             && echo 'This is a placeholder. Follow the README for proper Airbyte setup.'
+             && tail -f /dev/null"
+            
+  # Grafana - Analytics & Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dwh_grafana
+    restart: unless-stopped
+    networks:
+      - data-network
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin 
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - postgres
+      
