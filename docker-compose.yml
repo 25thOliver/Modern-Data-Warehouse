@@ -102,6 +102,8 @@ services:
       - WEBAPP_URL=http://airbyte-webapp:80
       - WORKER_ENVIRONMENT=docker
       - WORKSPACE_ROOT=${WORKSPACE_ROOT}
+      - SECRET_PERSISTENCE=local
+      - CONFIGS_DATABASE_MINIMUM_FLYWAY_MIGRATION_VERSION=0.35.15.001
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - workspace:${WORKSPACE_ROOT}
@@ -151,10 +153,14 @@ services:
       - AIRBYTE_VERSION=0.50.33
       - API_URL=/api/v1/
       - TRACKING_STRATEGY=segment
+      - INTERNAL_API_HOST=airbyte-server:8001
+      - CONNECTOR_BUILDER_API_HOST=airbyte-server:8001
+      - KEYCLOAK_INTERNAL_HOST=localhost
     networks:
       - data-network
     depends_on:
       - airbyte-server
+
 
   # Airbyte temporal
   airbyte-temporal:
