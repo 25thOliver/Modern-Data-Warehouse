@@ -15,7 +15,7 @@ services:
     networks:
       - data-network
     ports:
-      - "5432:5432"
+      - "5435:5432"
     environment:
       POSTGRES_USER: dwh_user
       POSTGRES_PASSWORD: dwh_password
