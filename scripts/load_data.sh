@@ -69,7 +69,7 @@ CREATE TABLE bronze.erp_orders (
 COPY bronze.erp_orders
 FROM '/tmp/erp_orders.csv'
 DELIMITER ','
-CSV HEADER
+CSV HEADER;
 
 -- Create metadata entry
 INSERT INTO public.pipeline_metadata (pipeline_name, phase, status, notes)
