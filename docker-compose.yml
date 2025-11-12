@@ -32,7 +32,7 @@ services:
       
   # Airbyte - Data Ingestion Platform
   airbyte:
-    image: airbyte/airbyte-bootloader:latest
+    image: airbyte/airbyte-platform:latest
     container_name: dwh_airbyte
     restart: unless-stopped
     networks:
@@ -52,10 +52,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: >
-      sh -c "echo 'Note: For full Airbyte deployment, please use the official Airbyte docker-compose from https://github.com/airbytehq/airbyte'
-             && echo 'This is a placeholder. Follow the README for proper Airbyte setup.'
-             && tail -f /dev/null"
+    
             
   # Grafana - Analytics & Visualization
   grafana:
