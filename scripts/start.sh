@@ -34,7 +34,7 @@ echo -n "PostgreSQL: "
 if docker-compose exec -T postgres pg_isready -U dwh_user -d data_warehouse > /dev/null 2>&1; then
     echo "Healthy"
 else
-    echo: "Not responding"
+    echo "Not responding"
 fi
 
 # Check Grafana
