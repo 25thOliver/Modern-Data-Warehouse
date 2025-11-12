@@ -5,6 +5,8 @@ networks:
 volumes:
   postgres_data:
   grafana_data:
+  airbyte_db:
+  workspace:
 
 services:
   # PostgreSQL Database - Our Data Warehouse
@@ -23,7 +25,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
-      - ./data_source:/data_source:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dwh_user -d data_warehouse"]
       interval: 10s
@@ -50,3 +51,153 @@ services:
     depends_on:
       - postgres
       
+  # Airbyte - Data Integration Platform
+  # Init container to set up workspace
+  init:
+    image: airbyte/init:0.50.33
+    container_name: airbyte_init
+    command: /bin/sh -c "./scripts/create_mount_directories.sh /local_parent ${HACK_LOCAL_ROOT_PARENT} ${LOCAL_ROOT}"
+    environment:
+      - LOCAL_ROOT=${LOCAL_ROOT}
+      - HACK_LOCAL_ROOT_PARENT=${HACK_LOCAL_ROOT_PARENT}
+    volumes:
+      - ${HACK_LOCAL_ROOT_PARENT}:/local_parent
+    networks:
+      - data-network
+
+  # Airbyte database (separate from data warehouse)
+  airbyte-db:
+    image: airbyte/db:0.50.33
+    container_name: airbyte_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=airbyte
+      - POSTGRES_PASSWORD=airbyte
+      - POSTGRES_DB=airbyte
+    volumes:
+      - airbyte_db:/var/lib/postgresql/data
+    networks:
+      - data-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airbyte"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Airbyte worker
+  airbyte-worker:
+    image: airbyte/worker:0.50.33
+    container_name: airbyte_worker
+    restart: unless-stopped
+    environment:
+      - AIRBYTE_VERSION=0.50.33
+      - CONFIG_ROOT=${CONFIG_ROOT}
+      - DATABASE_PASSWORD=airbyte
+      - DATABASE_URL=jdbc:postgresql://airbyte-db:5432/airbyte
+      - DATABASE_USER=airbyte
+      - LOCAL_ROOT=${LOCAL_ROOT}
+      - RUN_DATABASE_MIGRATION_ON_STARTUP=true
+      - TEMPORAL_HOST=airbyte-temporal:7233
+      - TRACKING_STRATEGY=segment
+      - WEBAPP_URL=http://airbyte-webapp:80
+      - WORKER_ENVIRONMENT=docker
+      - WORKSPACE_ROOT=${WORKSPACE_ROOT}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - workspace:${WORKSPACE_ROOT}
+      - ${LOCAL_ROOT}:${LOCAL_ROOT}
+      - ./data_source:/data_source:ro
+    networks:
+      - data-network
+    depends_on:
+      airbyte-db:
+        condition: service_healthy
+
+  # Airbyte server
+  airbyte-server:
+    image: airbyte/server:0.50.33
+    container_name: airbyte_server
+    restart: unless-stopped
+    environment:
+      - AIRBYTE_VERSION=0.50.33
+      - CONFIG_ROOT=${CONFIG_ROOT}
+      - DATABASE_PASSWORD=airbyte
+      - DATABASE_URL=jdbc:postgresql://airbyte-db:5432/airbyte
+      - DATABASE_USER=airbyte
+      - TEMPORAL_HOST=airbyte-temporal:7233
+      - TRACKING_STRATEGY=segment
+      - WEBAPP_URL=http://airbyte-webapp:80
+      - WORKER_ENVIRONMENT=docker
+      - WORKSPACE_ROOT=${WORKSPACE_ROOT}
+    ports:
+      - "8001:8001"
+    volumes:
+      - workspace:${WORKSPACE_ROOT}
+      - ./data_source:/data_source:ro
+    networks:
+      - data-network
+    depends_on:
+      airbyte-db:
+        condition: service_healthy
+
+  # Airbyte webapp
+  airbyte-webapp:
+    image: airbyte/webapp:0.50.33
+    container_name: airbyte_webapp
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    environment:
+      - AIRBYTE_VERSION=0.50.33
+      - API_URL=/api/v1/
+      - TRACKING_STRATEGY=segment
+    networks:
+      - data-network
+    depends_on:
+      - airbyte-server
+
+  # Airbyte temporal
+  airbyte-temporal:
+    image: airbyte/temporal:0.50.33
+    container_name: airbyte_temporal
+    restart: unless-stopped
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - LOG_LEVEL=info
+      - POSTGRES_PWD=airbyte
+      - POSTGRES_SEEDS=airbyte-db
+      - POSTGRES_USER=airbyte
+    volumes:
+      - ./temporal:/etc/temporal/config/dynamicconfig
+    networks:
+      - data-network
+    depends_on:
+      airbyte-db:
+        condition: service_healthy
+
+  # Airbyte cron
+  airbyte-cron:
+    image: airbyte/cron:0.50.33
+    container_name: airbyte_cron
+    restart: unless-stopped
+    environment:
+      - AIRBYTE_VERSION=0.50.33
+      - CONFIGS_DATABASE_MINIMUM_FLYWAY_MIGRATION_VERSION=0.35.15.001
+      - DATABASE_PASSWORD=airbyte
+      - DATABASE_URL=jdbc:postgresql://airbyte-db:5432/airbyte
+      - DATABASE_USER=airbyte
+      - DEPLOYMENT_MODE=oss
+      - LOG_LEVEL=INFO
+      - TEMPORAL_HISTORY_RETENTION_IN_DAYS=30
+      - TRACKING_STRATEGY=segment
+      - WEBAPP_URL=http://airbyte-webapp:80
+      - WORKSPACE_ROOT=${WORKSPACE_ROOT}
+    volumes:
+      - workspace:${WORKSPACE_ROOT}
+    networks:
+      - data-network
+    depends_on:
+      airbyte-db:
+        condition: service_healthy
