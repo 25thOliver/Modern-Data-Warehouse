@@ -1,0 +1,40 @@
+# Environment variables
+.env
+.env.example
+
+# Docker volumes
+postgres_data/
+airbyte_data/
+grafana_data/
+
+# dbt
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+
+# Python
+dbt_venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Data files (keep structure, ignore actual data)
+data_source/*.csv
+!data_source/.gitkeep
+!data_source/sample_*.csv
