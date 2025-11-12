@@ -9,7 +9,7 @@ volumes:
 
 services:
   # PostgreSQL Database - Our Data Warehouse
-  postgre:
+  postgres:
     image: postgres:15-alpine
     container_name: dwh_postgres
     restart: unless-stopped
