@@ -4,7 +4,6 @@ networks:
 
 volumes:
   postgres_data:
-  airbyte_data:
   grafana_data:
 
 services:
@@ -24,35 +23,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
+      - ./data_source:/data_source:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dwh_user -d data_warehouse"]
       interval: 10s
       timeout: 5s
       retries: 5
       
-  # Airbyte - Data Ingestion Platform
-  airbyte:
-    image: airbyte/airbyte-platform:latest
-    container_name: dwh_airbyte
-    restart: unless-stopped
-    networks:
-      - data-network
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_HOST=postgres
-      - DATABASE_PORT=5432
-      - DATABASE_USER=dwh_user
-      - DATABASE_PASSWORD=dwh_password
-      - DATABASE_DB=airbyte
-      - AIRBYTE_VERSION=latest
-    volumes:
-      - airbyte_data:/data
-      - ./data_source:/data_source:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    
             
   # Grafana - Analytics & Visualization
   grafana:
