@@ -11,7 +11,7 @@ if [ ! -f "data_source/crm_contacts.csv" ]; then
     exit 1
 fi
 
-if [ ! -f "data_source/erp_orders.csv"]; then
+if [ ! -f "data_source/erp_orders.csv" ]; then
     echo "Error: erp_orders.csv not found in data_source/"
     exit 1
 fi
@@ -32,7 +32,7 @@ echo "Creating bronze tables and loading data..."
 docker-compose exec -T postgres psql -U dwh_user -d data_warehouse << 'EOF'
 
 -- Create bronze.crm_contacts table
-DROP TABLES IF EXISTS bronze.crm_contacts CASCADE;
+DROP TABLE IF EXISTS bronze.crm_contacts CASCADE;
 CREATE TABLE bronze.crm_contacts (
     contact_id INTEGER PRIMARY KEY,
     first_name VARCHAR(100),
@@ -47,7 +47,7 @@ CREATE TABLE bronze.crm_contacts (
 -- Load CRM contacts data
 COPY bronze.crm_contacts
 FROM '/tmp/crm_contacts.csv'
-DELIMETER ','
+DELIMITER ','
 CSV HEADER;
 
 -- Create bronze.erp_orders table
@@ -63,12 +63,12 @@ CREATE TABLE bronze.erp_orders (
     order_date TIMESTAMP,
     status VARCHAR(50),
     payment_method VARCHAR(50)
-)
+);
 
 -- Load ERP orders data
 COPY bronze.erp_orders
 FROM '/tmp/erp_orders.csv'
-DELIMETER ','
+DELIMITER ','
 CSV HEADER
 
 -- Create metadata entry
