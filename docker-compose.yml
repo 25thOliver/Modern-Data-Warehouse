@@ -26,7 +26,7 @@ services:
       - ./init-scripts:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dwh_user -d data_warehouse"]
-      interval: 1os
+      interval: 10s
       timeout: 5s
       retries: 5
       
