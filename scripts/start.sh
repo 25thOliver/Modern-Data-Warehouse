@@ -1,69 +1,79 @@
-# Start script for Data Warehouse project
-# This script starts all Docker services and perfoms health checks
+# Start all services including Airbyte
 
 set -e
 
-echo "Startting Data Warehouses Services..."
+echo "Starting Data Warehouse with Airbyte"
 
-# Check if docker-compose.yml exists
-if [ ! -f "docker-compose.yml" ]; then
-    echo "Error: docker-compose.yml not found!"
-    echo "Please run this script from the data_warehouse directory"
+# Check if docker-compose is available
+if ! command -v docker-compose &> /dev/null; then
+    echo "Error: docker-compose not found"
+    echo "Please install docker-compose first"
     exit 1
 fi
 
-# Start services
-echo "Starting Docker Containers..."
+# Check if .env file exists
+if [ ! -f ".env" ]; then
+    echo "Error: .env file not found"
+    echo "Creating .env file..."
+    cat > .env << 'EOF'
+CONFIG_ROOT=/data
+DATA_DOCKER_MOUNT=airbyte_data
+DB_DOCKER_MOUNT=airbyte_db
+WORKSPACE_ROOT=/tmp/workspace
+WORKSPACE_DOCKER_MOUNT=airbyte_workspace
+LOCAL_ROOT=/tmp/airbyte_local
+LOCAL_DOCKER_MOUNT=/tmp/airbyte_local
+HACK_LOCAL_ROOT_PARENT=/tmp
+EOF
+    echo ".env file created"
+fi
+
+echo ""
+echo "Starting containers..."
 docker-compose up -d
 
 echo ""
 echo "Waiting for services to be healthy..."
-sleep 10
 
-# Check service status
+# Wait for PostgreSQL
+echo -n "Waiting for PostgreSQL..."
+until docker-compose exec -T postgres pg_isready -U dwh_user -d data_warehouse > /dev/null 2>&1; do
+    echo -n "."
+    sleep 2
+done
 echo ""
-echo "Service Status..."
-docker-compose ps
 
-# Health checks
+# Wait for Grafana
+echo -n "Waiting for Grafana..."
+until curl -sf http://localhost:3000/api/health > /dev/null 2>&1; do
+    echo -n "."
+    sleep 2
+done
 echo ""
-echo "Performing Health Checks..."
 
-# Check PostgreSQL
-echo -n "PostgreSQL: "
-if docker-compose exec -T postgres pg_isready -U dwh_user -d data_warehouse > /dev/null 2>&1; then
-    echo "Healthy"
-else
-    echo "Not responding"
+# Wait for Airbyte (this takes longer)
+echo -n "Waiting for Airbyte (this may take 2-3 minutes)..."
+MAX_ATTEMPTS=90
+ATTEMPT=0
+until curl -sf http://localhost:8000 > /dev/null 2>&1; do
+    echo -n "."
+    sleep 2
+    ATTEMPT=$((ATTEMPT + 1))
+    if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+        echo ""
+        echo "Airbyte is taking longer than expected. Check logs with: docker-compose logs airbyte-webapp"
+        break
+    fi
+done
+if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+    echo ""
 fi
 
-# Check Grafana
-echo -n "Grafana: "
-if curl -s http://localhost:3000/api/health > /dev/null 2>&1; then
-    echo "Healthy"
-else
-    echo "Not responding"
-fi
-
 echo ""
-echo "Services started successfully!"
+echo "All Services Started!"
 echo ""
-echo " Access Points:"
-echo "  PostgreSQL: localhost:5432"
-echo "  Grafana:    http://localhost:3000"
-echo "  Airbyte:    http://localhost:8000 (if configured)"
-echo ""
-echo "Default Credentials:"
-echo "PostgreSQL: dwh_user / dwh_password"
-echo "  Grafana:    admin / admin"
-echo ""
-echo "Next Steps:"
-echo "  1. Connect DBeaver to PostgreSQL"
-echo "  2. Access Grafana in your browser"
-echo "  3. Check README.md for Phase 0 verification"
-echo ""
-echo "Useful Commands:"
-echo "  View logs:    docker-compose logs -f"
-echo "  Stop services: docker-compose down"
-echo "  Restart:      docker-compose restart"
+echo "Service URLs:"
+echo "  - PostgreSQL:  localhost:5432"
+echo "  - Grafana:     http://localhost:3000"
+echo "  - Airbyte UI:  http://localhost:8000"
 echo ""
