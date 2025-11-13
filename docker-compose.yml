@@ -5,7 +5,6 @@ networks:
 volumes:
   postgres_data:
   grafana_data:
-  airbyte_db:
   workspace:
 
 services:
