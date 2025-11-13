@@ -1,79 +1,49 @@
-# Start all services including Airbyte
+# Start script for Data Warehouse project
+# This script starts all Docker services and performs health checks
 
 set -e
 
-echo "Starting Data Warehouse with Airbyte"
+echo "Starting Data Warehouse Services..."
 
-# Check if docker-compose is available
-if ! command -v docker-compose &> /dev/null; then
-    echo "Error: docker-compose not found"
-    echo "Please install docker-compose first"
+# Check if docker-compose.yml exists
+if [ ! -f "docker-compose.yml" ]; then
+    echo "Error: docker-compose.yml not found!"
+    echo "Please run this script from the my_data_project directory"
     exit 1
 fi
 
-# Check if .env file exists
-if [ ! -f ".env" ]; then
-    echo "Error: .env file not found"
-    echo "Creating .env file..."
-    cat > .env << 'EOF'
-CONFIG_ROOT=/data
-DATA_DOCKER_MOUNT=airbyte_data
-DB_DOCKER_MOUNT=airbyte_db
-WORKSPACE_ROOT=/tmp/workspace
-WORKSPACE_DOCKER_MOUNT=airbyte_workspace
-LOCAL_ROOT=/tmp/airbyte_local
-LOCAL_DOCKER_MOUNT=/tmp/airbyte_local
-HACK_LOCAL_ROOT_PARENT=/tmp
-EOF
-    echo ".env file created"
-fi
-
-echo ""
-echo "Starting containers..."
+# Start services
+echo "Starting Docker containers..."
 docker-compose up -d
 
 echo ""
 echo "Waiting for services to be healthy..."
+sleep 10
 
-# Wait for PostgreSQL
-echo -n "Waiting for PostgreSQL..."
-until docker-compose exec -T postgres pg_isready -U dwh_user -d data_warehouse > /dev/null 2>&1; do
-    echo -n "."
-    sleep 2
-done
+# Check service status
 echo ""
+echo "Service Status:"
+docker-compose ps
 
-# Wait for Grafana
-echo -n "Waiting for Grafana..."
-until curl -sf http://localhost:3000/api/health > /dev/null 2>&1; do
-    echo -n "."
-    sleep 2
-done
+# Health checks
 echo ""
+echo "Performing Health Checks..."
 
-# Wait for Airbyte (this takes longer)
-echo -n "Waiting for Airbyte (this may take 2-3 minutes)..."
-MAX_ATTEMPTS=90
-ATTEMPT=0
-until curl -sf http://localhost:8000 > /dev/null 2>&1; do
-    echo -n "."
-    sleep 2
-    ATTEMPT=$((ATTEMPT + 1))
-    if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
-        echo ""
-        echo "Airbyte is taking longer than expected. Check logs with: docker-compose logs airbyte-webapp"
-        break
-    fi
-done
-if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
-    echo ""
+# Check PostgreSQL
+echo -n "PostgreSQL: "
+if docker-compose exec -T postgres pg_isready -U dwh_user -d data_warehouse > /dev/null 2>&1; then
+    echo "Healthy"
+else
+    echo "Not responding"
+fi
+
+# Check Grafana
+echo -n "Grafana: "
+if curl -s http://localhost:3000/api/health > /dev/null 2>&1; then
+    echo "Healthy"
+else
+    echo "Not responding"
 fi
 
 echo ""
-echo "All Services Started!"
-echo ""
-echo "Service URLs:"
-echo "  - PostgreSQL:  localhost:5432"
-echo "  - Grafana:     http://localhost:3000"
-echo "  - Airbyte UI:  http://localhost:8000"
-echo ""
+echo "Services Started Successfully!"
